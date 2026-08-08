@@ -177,3 +177,96 @@ export const PLANET_DATA = {
   jupiter: JUPITER,
   saturn:  SATURN,
 };
+
+const ORBITAL_ELEMENTS = {
+  uranus: {
+    N: [74.0005, 1.3978e-5],
+    i: [0.7733, 1.9e-8],
+    w: [96.6612, 3.0565e-5],
+    a: [19.18171, -1.55e-8],
+    e: [0.047318, 7.45e-9],
+    M: [142.5905, 0.011725806],
+  },
+  neptune: {
+    N: [131.7806, 3.0173e-5],
+    i: [1.7700, -2.55e-7],
+    w: [272.8461, -6.027e-6],
+    a: [30.05826, 3.313e-8],
+    e: [0.008606, 2.15e-9],
+    M: [260.2471, 0.005995147],
+  },
+  pluto: {
+    N: [110.30347, 0],
+    i: [17.14175, 0],
+    w: [113.76329, 0],
+    a: [39.48168677, 0],
+    e: [0.24880766, 0],
+    M: [14.53, 0.003975709],
+  },
+};
+
+function element([base, rate], d) {
+  return base + rate * d;
+}
+
+function solveKepler(M, e) {
+  let E = M + e * Math.sin(M) * (1 + e * Math.cos(M));
+  for (let i = 0; i < 8; i++) {
+    E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  }
+  return E;
+}
+
+function heliocentricFromElements(name, jd) {
+  const d = jd - 2451543.5;
+  const data = ORBITAL_ELEMENTS[name];
+  const N = element(data.N, d) * DEG2RAD;
+  const i = element(data.i, d) * DEG2RAD;
+  const w = element(data.w, d) * DEG2RAD;
+  const a = element(data.a, d);
+  const e = element(data.e, d);
+  const M = normalizeDeg(element(data.M, d)) * DEG2RAD;
+  const E = solveKepler(M, e);
+
+  const xv = a * (Math.cos(E) - e);
+  const yv = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  const v = Math.atan2(yv, xv);
+  const r = Math.sqrt(xv * xv + yv * yv);
+
+  const xh = r * (Math.cos(N) * Math.cos(v + w) - Math.sin(N) * Math.sin(v + w) * Math.cos(i));
+  const yh = r * (Math.sin(N) * Math.cos(v + w) + Math.cos(N) * Math.sin(v + w) * Math.cos(i));
+  const zh = r * Math.sin(v + w) * Math.sin(i);
+  const L = normalizeDeg(Math.atan2(yh, xh) * RAD2DEG);
+  const B = Math.atan2(zh, Math.sqrt(xh * xh + yh * yh)) * RAD2DEG;
+  const R = Math.sqrt(xh * xh + yh * yh + zh * zh);
+
+  return { L, B, R };
+}
+
+/**
+ * Approximate apparent geocentric ecliptic position for Uranus, Neptune, Pluto.
+ * This fills chart requirements where the project has no VSOP87 data tables for
+ * trans-Saturn planets. Accuracy is suitable for sign/degree display, not
+ * high-precision astronomical work.
+ */
+export function getOuterPlanetGeoLongitude(name, jd) {
+  const T = (jd - 2451545.0) / 36525;
+  let tauLt = 0;
+  let geo;
+  for (let i = 0; i < 2; i++) {
+    const planet = heliocentricFromElements(name, jd - tauLt);
+    const earth = heliocentricEcliptic(EARTH, jd);
+    geo = helioToGeo(planet, earth);
+    tauLt = 0.0057755183 * geo.delta;
+  }
+
+  const { dL, dB } = fk5Correction(geo.lambda, geo.beta, T);
+  const { deltaPsi } = getNutation(jd);
+  return {
+    longitude: normalizeDeg(geo.lambda + dL + deltaPsi / 3600),
+    latitude: geo.beta + dB,
+    distance: geo.delta,
+  };
+}
+
+export const OUTER_PLANETS = ['uranus', 'neptune', 'pluto'];

@@ -4,7 +4,7 @@
 
 import express from 'express';
 import { generatePredictions } from '../vedic/predictions.js';
-import { calculateChart } from '../vedic/chart.js';
+import { calculateChart, calculateDailyPanchanga } from '../vedic/chart.js';
 
 const router = express.Router();
 
@@ -74,14 +74,17 @@ router.post('/panchanga', (req, res) => {
     const { year, month, day, hour = 6, latitude = 0, longitude = 0, timezone = 0, ayanamsha = 'lahiri' } = req.body;
     if (!year || !month || !day) return res.status(400).json({ error: 'year, month, day required' });
 
-    const chart = calculateChart({
-      year: parseInt(year), month: parseInt(month), day: parseInt(day),
-      hour: parseFloat(hour), minute: 0, second: 0,
-      latitude: parseFloat(latitude), longitude: parseFloat(longitude),
-      timezone: parseFloat(timezone), ayanamsha,
-    });
+    const daily = calculateDailyPanchanga(
+      parseInt(year),
+      parseInt(month),
+      parseInt(day),
+      parseFloat(latitude),
+      parseFloat(longitude),
+      parseFloat(timezone),
+      ayanamsha
+    );
 
-    res.json({ success: true, data: chart.panchanga });
+    res.json({ success: true, data: daily });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -13,7 +13,13 @@
  */
 
 import { calendarToJD, julianCenturies, normalizeDeg, DEG2RAD, RAD2DEG } from '../ephemeris/julian.js';
-import { getSunLongitude, getPlanetGeoLongitude, PLANET_DATA } from '../ephemeris/planets.js';
+import {
+  getSunLongitude,
+  getPlanetGeoLongitude,
+  getOuterPlanetGeoLongitude,
+  PLANET_DATA,
+  OUTER_PLANETS,
+} from '../ephemeris/planets.js';
 import { getMoonPosition } from '../ephemeris/moon.js';
 import { toSidereal, getAyanamsha } from '../ephemeris/ayanamsha.js';
 import { getNakshatra } from './nakshatra.js';
@@ -54,6 +60,165 @@ function toDMS(deg) {
   const m = Math.floor(mf);
   const s = Math.floor((mf - m) * 60);
   return `${d}° ${m}' ${s}"`;
+}
+
+function toTime(hours) {
+  const normalized = ((hours % 24) + 24) % 24;
+  const h = Math.floor(normalized);
+  const minutesFull = (normalized - h) * 60;
+  const m = Math.floor(minutesFull);
+  const s = Math.round((minutesFull - m) * 60);
+  const adjM = m + Math.floor(s / 60);
+  const adjH = (h + Math.floor(adjM / 60)) % 24;
+  return `${String(adjH).padStart(2, '0')}:${String(adjM % 60).padStart(2, '0')}`;
+}
+
+function addMinutes(timeHours, minutes) {
+  return timeHours + minutes / 60;
+}
+
+function localJd(year, month, day, localHour, timezone) {
+  return calendarToJD(year, month, day, localHour - timezone, 0, 0);
+}
+
+function getWeekdayIndex(year, month, day) {
+  const jd0 = calendarToJD(year, month, day, 0, 0, 0);
+  return Math.floor(jd0 + 1.5) % 7;
+}
+
+function getSunriseSunset(year, month, day, latitude, longitude, timezone) {
+  const zenith = 90.833;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const start = Date.UTC(year, 0, 0);
+  const n = Math.floor((date.getTime() - start) / 86400000);
+  const lngHour = longitude / 15;
+
+  function calc(isRise) {
+    const t = n + ((isRise ? 6 : 18) - lngHour) / 24;
+    const M = normalizeDeg(0.9856 * t - 3.289);
+    let L = normalizeDeg(M + 1.916 * Math.sin(M * DEG2RAD) + 0.020 * Math.sin(2 * M * DEG2RAD) + 282.634);
+    let RA = Math.atan(0.91764 * Math.tan(L * DEG2RAD)) * RAD2DEG;
+    RA = normalizeDeg(RA);
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90;
+    RA /= 15;
+
+    const sinDec = 0.39782 * Math.sin(L * DEG2RAD);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(zenith * DEG2RAD) - sinDec * Math.sin(latitude * DEG2RAD)) /
+      (cosDec * Math.cos(latitude * DEG2RAD));
+    if (cosH > 1 || cosH < -1) return null;
+
+    let H = isRise ? 360 - Math.acos(cosH) * RAD2DEG : Math.acos(cosH) * RAD2DEG;
+    H /= 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    return ((T - lngHour + timezone) % 24 + 24) % 24;
+  }
+
+  return {
+    sunrise: calc(true) ?? 6,
+    sunset: calc(false) ?? 18,
+  };
+}
+
+function formatPeriod(start, end) {
+  return { start: toTime(start), end: toTime(end) };
+}
+
+function calculateHora(year, month, day, latitude, longitude, timezone) {
+  const { sunrise, sunset } = getSunriseSunset(year, month, day, latitude, longitude, timezone);
+  const nextSunrise = getSunriseSunset(year, month, day + 1, latitude, longitude, timezone).sunrise + 24;
+  const weekday = getWeekdayIndex(year, month, day);
+  const dayLords = ['sun', 'moon', 'mars', 'mercury', 'jupiter', 'venus', 'saturn'];
+  const horaOrder = ['saturn', 'jupiter', 'mars', 'sun', 'venus', 'mercury', 'moon'];
+  let idx = horaOrder.indexOf(dayLords[weekday]);
+  const dayLength = sunset - sunrise;
+  const nightLength = nextSunrise - sunset;
+  const periods = [];
+
+  for (let i = 0; i < 12; i++) {
+    const start = sunrise + i * dayLength / 12;
+    const end = sunrise + (i + 1) * dayLength / 12;
+    periods.push({ lord: horaOrder[idx], part: 'day', ...formatPeriod(start, end) });
+    idx = (idx + 5) % 7;
+  }
+  for (let i = 0; i < 12; i++) {
+    const start = sunset + i * nightLength / 12;
+    const end = sunset + (i + 1) * nightLength / 12;
+    periods.push({ lord: horaOrder[idx], part: 'night', ...formatPeriod(start, end) });
+    idx = (idx + 5) % 7;
+  }
+  return { sunrise: toTime(sunrise), sunset: toTime(sunset), periods };
+}
+
+function calculateChoghadiya(year, month, day, latitude, longitude, timezone) {
+  const { sunrise, sunset } = getSunriseSunset(year, month, day, latitude, longitude, timezone);
+  const nextSunrise = getSunriseSunset(year, month, day + 1, latitude, longitude, timezone).sunrise + 24;
+  const weekday = getWeekdayIndex(year, month, day);
+  const daySequences = [
+    ['Udveg', 'Chal', 'Labh', 'Amrit', 'Kaal', 'Shubh', 'Rog', 'Udveg'],
+    ['Amrit', 'Kaal', 'Shubh', 'Rog', 'Udveg', 'Chal', 'Labh', 'Amrit'],
+    ['Rog', 'Udveg', 'Chal', 'Labh', 'Amrit', 'Kaal', 'Shubh', 'Rog'],
+    ['Labh', 'Amrit', 'Kaal', 'Shubh', 'Rog', 'Udveg', 'Chal', 'Labh'],
+    ['Shubh', 'Rog', 'Udveg', 'Chal', 'Labh', 'Amrit', 'Kaal', 'Shubh'],
+    ['Chal', 'Labh', 'Amrit', 'Kaal', 'Shubh', 'Rog', 'Udveg', 'Chal'],
+    ['Kaal', 'Shubh', 'Rog', 'Udveg', 'Chal', 'Labh', 'Amrit', 'Kaal'],
+  ];
+  const nightSequences = [
+    ['Shubh', 'Amrit', 'Chal', 'Rog', 'Kaal', 'Labh', 'Udveg', 'Shubh'],
+    ['Chal', 'Rog', 'Kaal', 'Labh', 'Udveg', 'Shubh', 'Amrit', 'Chal'],
+    ['Kaal', 'Labh', 'Udveg', 'Shubh', 'Amrit', 'Chal', 'Rog', 'Kaal'],
+    ['Udveg', 'Shubh', 'Amrit', 'Chal', 'Rog', 'Kaal', 'Labh', 'Udveg'],
+    ['Amrit', 'Chal', 'Rog', 'Kaal', 'Labh', 'Udveg', 'Shubh', 'Amrit'],
+    ['Rog', 'Kaal', 'Labh', 'Udveg', 'Shubh', 'Amrit', 'Chal', 'Rog'],
+    ['Labh', 'Udveg', 'Shubh', 'Amrit', 'Chal', 'Rog', 'Kaal', 'Labh'],
+  ];
+  const quality = { Amrit: 'auspicious', Shubh: 'auspicious', Labh: 'auspicious', Chal: 'neutral', Udveg: 'inauspicious', Kaal: 'inauspicious', Rog: 'inauspicious' };
+
+  function periods(start, end, sequence, part) {
+    const length = (end - start) / 8;
+    return sequence.map((name, i) => ({
+      name,
+      quality: quality[name],
+      part,
+      ...formatPeriod(start + i * length, start + (i + 1) * length),
+    }));
+  }
+
+  return {
+    sunrise: toTime(sunrise),
+    sunset: toTime(sunset),
+    day: periods(sunrise, sunset, daySequences[weekday], 'day'),
+    night: periods(sunset, nextSunrise, nightSequences[weekday], 'night'),
+  };
+}
+
+function calculateUpagrahas(year, month, day, latitude, longitude, timezone, ayanamsha) {
+  const { sunrise, sunset } = getSunriseSunset(year, month, day, latitude, longitude, timezone);
+  const weekday = getWeekdayIndex(year, month, day);
+  const gulikaSegmentByWeekday = [7, 6, 5, 4, 3, 2, 1];
+  const segmentLength = (sunset - sunrise) / 8;
+  const gulikaStart = sunrise + (gulikaSegmentByWeekday[weekday] - 1) * segmentLength;
+  const maandiTime = addMinutes(gulikaStart, segmentLength * 30);
+
+  function pointAt(localHour) {
+    const jd = localJd(year, month, day, localHour, timezone);
+    const tropicalLongitude = getTropicalAscendant(jd, latitude, longitude);
+    const siderealLongitude = toSidereal(tropicalLongitude, jd, ayanamsha);
+    return {
+      tropicalLongitude,
+      siderealLongitude,
+      ...getRashi(siderealLongitude),
+      nakshatra: getNakshatra(siderealLongitude),
+      dms: toDMS(siderealLongitude),
+      localTime: toTime(localHour),
+    };
+  }
+
+  return {
+    gulika: pointAt(gulikaStart),
+    maandi: pointAt(maandiTime),
+    method: 'Gulika is calculated at the start of Saturn segment of the daytime; Maandi at its midpoint.',
+  };
 }
 
 /**
@@ -101,6 +266,21 @@ function computeAllPlanets(jd, ayanamshaSystem) {
       ...getRashi(sid),
       nakshatra: getNakshatra(sid),
       dignity: getPlanetDignity(name, sid),
+    };
+  }
+
+  for (const name of OUTER_PLANETS) {
+    const trop = getOuterPlanetGeoLongitude(name, jd);
+    const sid = toSidereal(trop.longitude, jd, ayanamshaSystem);
+    results[name] = {
+      tropicalLongitude: trop.longitude,
+      siderealLongitude: sid,
+      latitude: trop.latitude,
+      distance: trop.distance,
+      ...getRashi(sid),
+      nakshatra: getNakshatra(sid),
+      dignity: getPlanetDignity(name, sid),
+      approximate: true,
     };
   }
 
@@ -223,6 +403,8 @@ export function calculateChart(params) {
 
   // ── Panchanga (5 elements of the day) ──
   const panchanga = calculatePanchanga(jd, latitude, longitude, ayanamsha);
+  const dailyPanchanga = calculateDailyPanchanga(year, month, day, latitude, longitude, timezone, ayanamsha);
+  const upagrahas = calculateUpagrahas(year, month, day, latitude, longitude, timezone, ayanamsha);
 
   return {
     input: { year, month, day, hour, minute, second, latitude, longitude, timezone, ayanamsha, houseSystem },
@@ -250,6 +432,21 @@ export function calculateChart(params) {
     dasha: dashaInfo,
     mahadashas,
     panchanga,
+    dailyPanchanga,
+    upagrahas,
+  };
+}
+
+export function calculateDailyPanchanga(year, month, day, latitude, longitude, timezone, ayanamsha = 'lahiri') {
+  const { sunrise, sunset } = getSunriseSunset(year, month, day, latitude, longitude, timezone);
+  const jd = localJd(year, month, day, sunrise, timezone);
+  return {
+    date: { year, month, day, timezone },
+    sunrise: toTime(sunrise),
+    sunset: toTime(sunset),
+    panchanga: calculatePanchanga(jd, latitude, longitude, ayanamsha),
+    hora: calculateHora(year, month, day, latitude, longitude, timezone),
+    choghadiya: calculateChoghadiya(year, month, day, latitude, longitude, timezone),
   };
 }
 

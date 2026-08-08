@@ -8,11 +8,15 @@ const PLANET_COLORS: Record<string, { bg: string; text: string; border: string }
   Saturn:  { bg: "rgba(100,116,139,0.12)",text: "#94a3b8", border: "rgba(100,116,139,0.3)" },
   Rahu:    { bg: "rgba(139,92,246,0.1)",  text: "#a78bfa", border: "rgba(139,92,246,0.25)" },
   Ketu:    { bg: "rgba(120,113,108,0.1)", text: "#a8a29e", border: "rgba(120,113,108,0.25)" },
+  Uranus:  { bg: "rgba(45,212,191,0.1)",  text: "#2dd4bf", border: "rgba(45,212,191,0.25)" },
+  Neptune: { bg: "rgba(96,165,250,0.1)",  text: "#60a5fa", border: "rgba(96,165,250,0.25)" },
+  Pluto:   { bg: "rgba(244,114,182,0.1)", text: "#f472b6", border: "rgba(244,114,182,0.25)" },
 };
 
 const PLANET_GLYPHS: Record<string, string> = {
   Sun: "☉", Moon: "☽", Mars: "♂", Mercury: "☿",
   Jupiter: "♃", Venus: "♀", Saturn: "♄", Rahu: "☊", Ketu: "☋",
+  Uranus: "♅", Neptune: "♆", Pluto: "♇",
 };
 
 type Props = { name: string; size?: "sm" | "md" };

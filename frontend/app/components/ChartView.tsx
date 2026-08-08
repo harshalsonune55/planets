@@ -28,6 +28,7 @@ export default function ChartView({ data }: Props) {
   const asc = data.ascendant as Record<string, unknown> ?? {};
   const ayanamsha = data.ayanamsha as Record<string, unknown> ?? {};
   const panchanga = data.panchanga as Record<string, unknown> ?? {};
+  const upagrahas = data.upagrahas as Record<string, Record<string, unknown>> | undefined;
 
   return (
     <div className="grid gap-6">
@@ -84,6 +85,39 @@ export default function ChartView({ data }: Props) {
           </>
         )}
       </div>
+
+      {upagrahas && (
+        <div className="card fade-up" style={{ animationDelay: "40ms" }}>
+          <span className="label">Upagrahas</span>
+          <div className="grid grid-cols-2 gap-3" style={{ marginTop: 10 }}>
+            {[
+              { key: "gulika", label: "Gulika" },
+              { key: "maandi", label: "Maandi" },
+            ].map(({ key, label }) => {
+              const p = upagrahas[key] ?? {};
+              const nakshatra = p.nakshatra as Record<string, unknown> | undefined;
+              return (
+                <div key={key} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{label}</span>
+                    <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.localTime as string}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text)", marginTop: 6 }}>
+                    {(p.name as string) ?? "—"}
+                    <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{p.english as string}</span>
+                    <span className="mono" style={{ color: "var(--text-dim)", marginLeft: 8 }}>{p.dmsFormatted as string}</span>
+                  </div>
+                  {nakshatra?.name && (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                      {nakshatra.name as string} · Pada {nakshatra.pada as number}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Planets */}
       <div>

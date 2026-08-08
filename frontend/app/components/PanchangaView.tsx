@@ -18,13 +18,16 @@ const PANCHANGA_LABELS = [
   { key: "karana", label: "Karana", desc: "Half tithi" },
 ];
 
+function periods(value: unknown) {
+  return Array.isArray(value) ? value as Record<string, unknown>[] : [];
+}
+
 export default function PanchangaView({ birthData, transitData }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [day, setDay] = useState(today.getDate());
   const [loading, setLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [panchangaData, setPanchangaData] = useState<Record<string, unknown> | null>(null);
 
   async function fetchPanchanga() {
@@ -45,8 +48,10 @@ export default function PanchangaView({ birthData, transitData }: Props) {
     }
   }
 
-  // panchanga response: { panchanga: { tithi, vara, nakshatra, yoga, karana, paksha } }
+  // panchanga response: { panchanga, sunrise, sunset, hora, choghadiya }
   const panchanga = (panchangaData?.panchanga ?? panchangaData) as Record<string, unknown> | null;
+  const hora = panchangaData?.hora as Record<string, unknown> | undefined;
+  const choghadiya = panchangaData?.choghadiya as Record<string, unknown> | undefined;
 
   return (
     <div className="grid gap-6">
@@ -106,7 +111,52 @@ export default function PanchangaView({ birthData, transitData }: Props) {
           {panchanga.paksha && (
             <div className="card fade-up" style={{ animationDelay: "80ms", padding: "10px 16px" }}>
               <span className="label">Paksha</span>
-              <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4 }}>{panchanga.paksha as string}</div>
+              <div style={{ fontSize: 14, color: "var(--text)", marginTop: 4 }}>
+                {panchanga.paksha as string}
+                {panchangaData?.sunrise && panchangaData?.sunset && (
+                  <span className="mono" style={{ color: "var(--text-muted)", marginLeft: 12 }}>
+                    Sunrise {panchangaData.sunrise as string} · Sunset {panchangaData.sunset as string}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hora && (
+            <div className="card fade-up" style={{ animationDelay: "100ms" }}>
+              <span className="label">Hora</span>
+              <div className="grid grid-cols-4 gap-2" style={{ marginTop: 10 }}>
+                {periods(hora.periods).map((p, i) => (
+                  <div key={`${p.start}-${i}`} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{cap(p.lord as string)}</div>
+                    <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{p.start as string}–{p.end as string}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {choghadiya && (
+            <div className="card fade-up" style={{ animationDelay: "120ms" }}>
+              <span className="label">Choghadiya</span>
+              <div className="grid grid-cols-2 gap-4" style={{ marginTop: 10 }}>
+                {[
+                  { title: "Day", items: periods(choghadiya.day) },
+                  { title: "Night", items: periods(choghadiya.night) },
+                ].map(({ title, items }) => (
+                  <div key={title}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8 }}>{title}</div>
+                    <div className="grid gap-2">
+                      {items.map((p, i) => (
+                        <div key={`${title}-${p.start}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
+                          <span style={{ fontSize: 12, color: "var(--text)" }}>{p.name as string}</span>
+                          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.start as string}–{p.end as string}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>
