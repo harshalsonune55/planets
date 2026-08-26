@@ -23,11 +23,18 @@ function toInputValue({ year, month, day }: DateValue) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function shiftDays({ year, month, day }: DateValue, delta: number): DateValue {
+  const d = new Date(year, month - 1, day);
+  d.setDate(d.getDate() + delta);
+  return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+}
+
 export default function PlaceBar({
   place, onPlaceChange, date, onDateChange, days, onDaysChange, loading,
 }: Props) {
   // A custom place keeps its own coordinates; the dropdown falls back to "custom".
   const [custom, setCustom] = useState(false);
+  const isCustom = custom || place.id === "custom";
 
   function selectPlace(id: string) {
     if (id === "custom") { setCustom(true); return; }
@@ -39,112 +46,129 @@ export default function PlaceBar({
     const value = parseFloat(raw);
     onPlaceChange({
       ...place,
+      id: "custom",
       name: "Custom location",
       region: "entered coordinates",
-      id: "custom",
       [field]: Number.isNaN(value) ? 0 : value,
     });
   }
 
   return (
-    <div className="card fade-up">
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-          <label className="label" htmlFor="place">Place</label>
+    <div className="toolbar">
+      <div className="toolbar-row">
+        <div className="field field-grow">
+          <label className="field-label" htmlFor="place">Place</label>
           <select
             id="place"
             className="input"
-            value={custom || place.id === "custom" ? "custom" : place.id}
+            value={isCustom ? "custom" : place.id}
             onChange={(e) => selectPlace(e.target.value)}
             style={{ appearance: "none" }}
           >
             {PLACES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.region}
-              </option>
+              <option key={p.id} value={p.id}>{p.name} — {p.region}</option>
             ))}
             <option value="custom">Custom coordinates…</option>
           </select>
         </div>
 
-        <div>
-          <label className="label" htmlFor="date">Date</label>
-          <input
-            id="date"
-            className="input"
-            type="date"
-            value={toInputValue(date)}
-            onChange={(e) => {
-              const [y, m, d] = e.target.value.split("-").map(Number);
-              if (y && m && d) onDateChange({ year: y, month: m, day: d });
-            }}
-            style={{ minWidth: 160 }}
-          />
+        <div className="field">
+          <label className="field-label" htmlFor="date">Date</label>
+          <div className="stepper">
+            <button
+              type="button"
+              className="stepper-btn"
+              aria-label="Previous day"
+              onClick={() => onDateChange(shiftDays(date, -1))}
+            >
+              ‹
+            </button>
+            <input
+              id="date"
+              className="input stepper-input"
+              type="date"
+              value={toInputValue(date)}
+              onChange={(e) => {
+                const [y, m, d] = e.target.value.split("-").map(Number);
+                if (y && m && d) onDateChange({ year: y, month: m, day: d });
+              }}
+            />
+            <button
+              type="button"
+              className="stepper-btn"
+              aria-label="Next day"
+              onClick={() => onDateChange(shiftDays(date, 1))}
+            >
+              ›
+            </button>
+          </div>
         </div>
 
-        <div>
-          <label className="label" htmlFor="days">Days</label>
-          <select
-            id="days"
-            className="input"
-            value={days}
-            onChange={(e) => onDaysChange(Number(e.target.value))}
-            style={{ appearance: "none", minWidth: 110 }}
-          >
+        <div className="field">
+          <span className="field-label">Span</span>
+          <div className="seg">
             {DAY_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n === 1 ? "1 day" : `${n} days`}</option>
+              <button
+                key={n}
+                type="button"
+                className={`seg-btn${days === n ? " active" : ""}`}
+                onClick={() => onDaysChange(n)}
+              >
+                {n}d
+              </button>
             ))}
-          </select>
+          </div>
         </div>
 
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => {
-            const now = new Date();
-            onDateChange({ year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() });
-          }}
-        >
-          Today
-        </button>
+        <div className="field">
+          <span className="field-label" aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              const now = new Date();
+              onDateChange({ year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() });
+            }}
+          >
+            Today
+          </button>
+        </div>
       </div>
 
       {/* The coordinates every calculation below is based on */}
-      <div className="divider" />
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="coord-strip">
+        <span className="coord-pin" aria-hidden>◎</span>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Coordinates
-          </div>
-          <div className="mono" style={{ fontSize: 14, color: "var(--text)", marginTop: 3 }}>
-            {formatCoords(place.latitude, place.longitude)}
-          </div>
+          <div className="coord-name">{place.name}</div>
+          <div className="coord-region">{place.region}</div>
         </div>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Time zone
-          </div>
-          <div className="mono" style={{ fontSize: 14, color: "var(--text)", marginTop: 3 }}>
-            {formatOffset(place.timezone)}
-          </div>
+        <div className="coord-val">
+          <span className="coord-key">Coordinates</span>
+          <span className="mono">{formatCoords(place.latitude, place.longitude)}</span>
         </div>
-        <div style={{ fontSize: 11, color: "var(--text-dim)", flex: 1, minWidth: 180 }}>
-          Sunrise-based at {place.name}
-          {loading && <span style={{ marginLeft: 8 }}><span className="spinner" />computing…</span>}
+        <div className="coord-val">
+          <span className="coord-key">Time zone</span>
+          <span className="mono">{formatOffset(place.timezone)}</span>
         </div>
+        {loading && (
+          <span className="coord-loading">
+            <span className="spinner" /> computing
+          </span>
+        )}
       </div>
 
-      {(custom || place.id === "custom") && (
-        <div className="grid grid-cols-3 gap-2" style={{ marginTop: 12 }}>
+      {isCustom && (
+        <div className="custom-coords">
           {([
             { label: "Latitude", field: "latitude" as const, step: 0.0001 },
             { label: "Longitude", field: "longitude" as const, step: 0.0001 },
             { label: "Timezone (UTC+)", field: "timezone" as const, step: 0.25 },
           ]).map(({ label, field, step }) => (
-            <div key={field}>
-              <label className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</label>
+            <div className="field" key={field}>
+              <label className="field-label" htmlFor={`coord-${field}`}>{label}</label>
               <input
-                className="input mt-1"
+                id={`coord-${field}`}
+                className="input"
                 type="number"
                 step={step}
                 value={place[field]}

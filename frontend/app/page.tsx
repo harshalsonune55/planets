@@ -73,31 +73,19 @@ export default function Home() {
   }, []);
 
   return (
-    <main style={{ minHeight: "100dvh", background: "var(--bg)", padding: "40px 24px 80px" }}>
-      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-        <header style={{ marginBottom: 24, textAlign: "center" }}>
-          <h1
-            style={{
-              fontSize: 30,
-              fontWeight: 700,
-              letterSpacing: "-0.03em",
-              background: "linear-gradient(135deg, #eeeeff 30%, #a78bfa)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              marginBottom: 8,
-            }}
-          >
-            Panchang
-          </h1>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            Tithi, Nakshatra, Yoga, Karana and Vara — with Hora and Choghadiya for each day
+    <main className="page">
+      <div className="page-inner">
+        <header className="page-head">
+          <h1 className="page-title">Panchang</h1>
+          <p className="page-sub">
+            Tithi, Nakshatra, Yoga, Karana and Vara — with Hora and Choghadiya for every day
           </p>
-          <p className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>
+          <p className="page-note mono">
             {place.name} · {formatCoords(place.latitude, place.longitude)} · {formatOffset(place.timezone)}
           </p>
         </header>
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 26 }}>
           <PlaceBar
             place={place}
             onPlaceChange={setPlace}
@@ -112,17 +100,18 @@ export default function Home() {
         {result && result.length > 0 && <PanchangaView days={result} transitData={transit} />}
 
         {error && !loading && (
-          <div className="card" style={{ textAlign: "center", color: "var(--text-muted)", padding: 32 }}>
+          <div className="state-box">
             {error}
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 14 }}>
               <button className="btn btn-primary" onClick={load}>Try again</button>
             </div>
           </div>
         )}
 
         {loading && !result && (
-          <div style={{ textAlign: "center", color: "var(--text-dim)", fontSize: 13, paddingTop: 24 }}>
-            <span className="spinner" /> Computing the almanac…
+          <div className="state-box">
+            <span className="spinner" />
+            Computing the almanac…
           </div>
         )}
       </div>
