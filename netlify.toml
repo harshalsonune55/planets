@@ -1,0 +1,18 @@
+# Netlify builds the Next.js frontend only; the API is deployed separately.
+#
+# NEXT_PUBLIC_API_URL must be set in Netlify's environment (Site configuration →
+# Environment variables) to the public URL of the backend, e.g.
+# https://planets-api.onrender.com. It is inlined at build time, so changing it
+# needs a redeploy — without it the site falls back to http://localhost:3001 and
+# every request fails in the browser.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
