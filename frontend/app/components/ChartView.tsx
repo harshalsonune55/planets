@@ -20,6 +20,51 @@ const RASHI_NAMES = [
   "Tula","Vrischika","Dhanu","Makara","Kumbha","Meena"
 ];
 
+type Obj = Record<string, unknown>;
+const obj = (v: unknown) => (v && typeof v === "object" ? (v as Obj) : undefined);
+
+/** The five limbs, each pulled out of the panchanga payload with a short subtitle. */
+const PANCHANGA_LIMBS: { label: string; read: (p: Obj) => { value?: string; note?: string } }[] = [
+  {
+    label: "Tithi",
+    read: (p) => {
+      const t = obj(p.tithi);
+      return {
+        value: t && `${t.paksha as string} ${t.name as string}`,
+        note: obj(t?.ends)?.time as string | undefined,
+      };
+    },
+  },
+  {
+    label: "Vara",
+    read: (p) => {
+      const v = obj(p.vara);
+      return { value: v?.name as string, note: v?.english as string };
+    },
+  },
+  {
+    label: "Nakshatra",
+    read: (p) => {
+      const n = obj(p.nakshatra);
+      return { value: n?.name as string, note: n && `Pada ${n.pada as number}` };
+    },
+  },
+  {
+    label: "Yoga",
+    read: (p) => {
+      const y = obj(p.yoga);
+      return { value: y?.name as string, note: obj(y?.ends)?.time as string | undefined };
+    },
+  },
+  {
+    label: "Karana",
+    read: (p) => {
+      const k = obj(p.karana);
+      return { value: k?.name as string, note: obj(k?.ends)?.time as string | undefined };
+    },
+  },
+];
+
 export default function ChartView({ data }: Props) {
   const planets: { key: string; p: Record<string, unknown> }[] = Object.entries(
     (data.planets ?? {}) as Record<string, Record<string, unknown>>
@@ -28,6 +73,8 @@ export default function ChartView({ data }: Props) {
   const asc = data.ascendant as Record<string, unknown> ?? {};
   const ayanamsha = data.ayanamsha as Record<string, unknown> ?? {};
   const panchanga = data.panchanga as Record<string, unknown> ?? {};
+  const lunarMonth = obj(panchanga.lunarMonth);
+  const samvat = obj(panchanga.samvat);
   const upagrahas = data.upagrahas as Record<string, Record<string, unknown>> | undefined;
 
   return (
@@ -48,6 +95,12 @@ export default function ChartView({ data }: Props) {
                 {(asc.dmsFormatted as string) ?? ""}
               </span>
             </div>
+            {!!obj(asc.nakshatra)?.name && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                {obj(asc.nakshatra)?.name as string} · Pada {obj(asc.nakshatra)?.pada as number}
+                {!!asc.lord && <span> · Lagna lord {cap(asc.lord as string)}</span>}
+              </div>
+            )}
           </div>
           <div>
             <span className="label">Ayanamsha</span>
@@ -62,26 +115,32 @@ export default function ChartView({ data }: Props) {
           </div>
         </div>
 
-        {/* Panchanga strip */}
+        {/* Panchanga at the moment of birth */}
         {panchanga && Object.keys(panchanga).length > 0 && (
           <>
             <div className="divider" />
             <div className="grid grid-cols-5 gap-3">
-              {[
-                { label: "Tithi", value: panchanga.tithi as string },
-                { label: "Vara", value: panchanga.vara as string },
-                { label: "Nakshatra", value: panchanga.nakshatra as string },
-                { label: "Yoga", value: panchanga.yoga as string },
-                { label: "Karana", value: panchanga.karana as string },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <span className="label">{label}</span>
-                  <div style={{ fontSize: 12, color: "var(--text)", fontWeight: 500, marginTop: 2, lineHeight: 1.4 }}>
-                    {value ?? "—"}
+              {PANCHANGA_LIMBS.map(({ label, read }) => {
+                const { value, note } = read(panchanga);
+                return (
+                  <div key={label}>
+                    <span className="label">{label}</span>
+                    <div style={{ fontSize: 12, color: "var(--text)", fontWeight: 500, marginTop: 2, lineHeight: 1.4 }}>
+                      {value ?? "—"}
+                    </div>
+                    {note && (
+                      <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{note}</div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+            {(lunarMonth?.purnimanta || panchanga.ritu) && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 10 }}>
+                {lunarMonth?.purnimanta as string} · {panchanga.ritu as string}
+                {samvat?.vikram != null && ` · Vikram Samvat ${samvat.vikram as number}`}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -107,7 +166,7 @@ export default function ChartView({ data }: Props) {
                     <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{p.english as string}</span>
                     <span className="mono" style={{ color: "var(--text-dim)", marginLeft: 8 }}>{p.dmsFormatted as string}</span>
                   </div>
-                  {nakshatra?.name && (
+                  {!!nakshatra?.name && (
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
                       {nakshatra.name as string} · Pada {nakshatra.pada as number}
                     </div>
@@ -219,8 +278,24 @@ export default function ChartView({ data }: Props) {
                       <PlanetBadge name={cap(house.lord as string)} size="sm" />
                     )}
                   </div>
-                  {planetsInHouse.length > 0 && (
+                  {(i === 0 || planetsInHouse.length > 0) && (
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+                      {i === 0 && (
+                        <span
+                          title="Ascendant (Lagna)"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: "2px 8px",
+                            borderRadius: 12,
+                            background: "rgba(167,139,250,0.14)",
+                            color: "var(--accent)",
+                            border: "1px solid rgba(167,139,250,0.32)",
+                          }}
+                        >
+                          Asc {(asc.dmsFormatted as string) ?? ""}
+                        </span>
+                      )}
                       {planetsInHouse.map((pn) => (
                         <PlanetBadge key={pn} name={cap(pn)} size="sm" />
                       ))}

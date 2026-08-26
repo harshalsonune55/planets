@@ -33,6 +33,17 @@ async function get<T>(path: string): Promise<T> {
   return (json.data ?? json) as T;
 }
 
+/** A place and date to compute an almanac for. */
+export type PanchangaQuery = {
+  year: number;
+  month: number;
+  day: number;
+  latitude: number;
+  longitude: number;
+  timezone: number;
+  ayanamsha?: BirthData["ayanamsha"];
+};
+
 export const api = {
   chart: (data: BirthData) => post("/api/chart", data),
   chartTest: () => get("/api/chart/test"),
@@ -44,11 +55,13 @@ export const api = {
     post("/api/dasha/antardasha", data),
   predictions: (birth: BirthData, query?: { year: number; month: number; day: number }) =>
     post("/api/predictions", { birth, query }),
-  panchanga: (data: {
-    year: number; month: number; day: number;
-    hour?: number; minute?: number;
-    latitude: number; longitude: number; timezone: number;
-  }) => post("/api/predictions/panchanga", data),
+
+  /** Full almanac for one day: 5 limbs with end times, Hora, Choghadiya, Kaal periods. */
+  panchanga: (data: PanchangaQuery) => post("/api/panchanga", data),
+  /** The same, for `days` consecutive days starting at the given date. */
+  panchangaRange: (data: PanchangaQuery & { days: number }) =>
+    post("/api/panchanga/range", data),
+
   transit: (data?: { year?: number; month?: number; day?: number; timezone?: number }) =>
     post("/api/predictions/transit", data ?? {}),
 };

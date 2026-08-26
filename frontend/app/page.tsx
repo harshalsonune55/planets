@@ -1,155 +1,128 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api } from "./lib/api";
+import type { PanchangaQuery } from "./lib/api";
+import { DEFAULT_PLACE, formatCoords, formatOffset } from "./lib/places";
+import type { Place } from "./lib/places";
+import PlaceBar from "./components/PlaceBar";
+import type { DateValue } from "./components/PlaceBar";
+import PanchangaView from "./components/PanchangaView";
 
-type Planet = {
-  siderealLongitude: number;
-  latitude: number;
-  distance: number | null;
-  rashi: string;
-  rashiIndex: number;
-  degree: number;
-  nakshatra: { name: string; pada: number };
-  dignity: string;
-  retrograde?: boolean;
-};
+type Obj = Record<string, unknown>;
 
-type PlanetsResult = {
-  date: { year: number; month: number; day: number; hour: number; minute: number; timezone: number };
-  ayanamsha: { system: string; value: number };
-  planets: Record<string, Planet>;
-};
+function today(): DateValue {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
+}
 
-const PLANET_ORDER = ["sun", "moon", "mars", "mercury", "jupiter", "venus", "saturn", "rahu", "ketu"];
-const PLANET_LABELS: Record<string, string> = {
-  sun: "Sun", moon: "Moon", mars: "Mars", mercury: "Mercury",
-  jupiter: "Jupiter", venus: "Venus", saturn: "Saturn", rahu: "Rahu", ketu: "Ketu",
-};
-
-function degToDMS(deg: number) {
-  const d = Math.floor(deg);
-  const mf = (deg - d) * 60;
-  const m = Math.floor(mf);
-  const s = Math.floor((mf - m) * 60);
-  return `${d}° ${m}′ ${s}″`;
+/** One day, or a run of days — the range endpoint already returns an array. */
+async function loadPanchanga(query: PanchangaQuery, days: number): Promise<Obj[]> {
+  if (days === 1) return [(await api.panchanga(query)) as Obj];
+  return (await api.panchangaRange({ ...query, days })) as Obj[];
 }
 
 export default function Home() {
-  const [data, setData] = useState<PlanetsResult | null>(null);
+  const [place, setPlace] = useState<Place>(DEFAULT_PLACE);
+  const [date, setDate] = useState<DateValue>(today);
+  const [days, setDays] = useState(1);
+  const [result, setResult] = useState<Obj[] | null>(null);
+  const [transit, setTransit] = useState<Obj | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeStr, setTimeStr] = useState("");
 
+  const { latitude, longitude, timezone } = place;
+  const { year, month, day } = date;
+
+  // Panchang, Hora and Choghadiya for the selected place — no birth details needed.
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await loadPanchanga(
+        { year, month, day, latitude, longitude, timezone, ayanamsha: "lahiri" },
+        days,
+      );
+      setResult(res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not compute the panchang";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [year, month, day, latitude, longitude, timezone, days]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Current transits are independent of the selected day, so fetch them once.
   useEffect(() => {
     const now = new Date();
-    setTimeStr(now.toLocaleString(undefined, {
-      weekday: "long", year: "numeric", month: "long",
-      day: "numeric", hour: "2-digit", minute: "2-digit",
-    }));
-  }, []);
-
-  useEffect(() => {
-    const now = new Date();
-    api.planets({
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
-      day: now.getDate(),
-      timezone: -(now.getTimezoneOffset() / 60),
-    })
-      .then((res) => setData(res as PlanetsResult))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to fetch"));
+    api
+      .transit({
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+        day: now.getDate(),
+        timezone: -(now.getTimezoneOffset() / 60),
+      })
+      .then((res) => setTransit(((res as Obj)?.planets as Obj) ?? null))
+      .catch(() => {
+        /* transits are supplementary — a failure here shouldn't hide the panchang */
+      });
   }, []);
 
   return (
     <main style={{ minHeight: "100dvh", background: "var(--bg)", padding: "40px 24px 80px" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 36, textAlign: "center" }}>
-          <h1 style={{
-            fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em",
-            background: "linear-gradient(135deg, #eeeeff 30%, #a78bfa)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            marginBottom: 8,
-          }}>
-            Planetary Positions
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+        <header style={{ marginBottom: 24, textAlign: "center" }}>
+          <h1
+            style={{
+              fontSize: 30,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              background: "linear-gradient(135deg, #eeeeff 30%, #a78bfa)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              marginBottom: 8,
+            }}
+          >
+            Panchang
           </h1>
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{timeStr}</p>
-          {data && (
-            <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>
-              Ayanamsha ({data.ayanamsha.system}): {data.ayanamsha.value.toFixed(4)}°
-            </p>
-          )}
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            Tithi, Nakshatra, Yoga, Karana and Vara — with Hora and Choghadiya for each day
+          </p>
+          <p className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>
+            {place.name} · {formatCoords(place.latitude, place.longitude)} · {formatOffset(place.timezone)}
+          </p>
+        </header>
+
+        <div style={{ marginBottom: 24 }}>
+          <PlaceBar
+            place={place}
+            onPlaceChange={setPlace}
+            date={date}
+            onDateChange={setDate}
+            days={days}
+            onDaysChange={setDays}
+            loading={loading}
+          />
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="card" style={{ color: "#f87171", textAlign: "center", padding: 24 }}>
+        {result && result.length > 0 && <PanchangaView days={result} transitData={transit} />}
+
+        {error && !loading && (
+          <div className="card" style={{ textAlign: "center", color: "var(--text-muted)", padding: 32 }}>
             {error}
+            <div style={{ marginTop: 12 }}>
+              <button className="btn btn-primary" onClick={load}>Try again</button>
+            </div>
           </div>
         )}
 
-        {/* Loading */}
-        {!data && !error && (
-          <div style={{ textAlign: "center", color: "var(--text-muted)", paddingTop: 60 }}>
-            <span className="spinner" style={{ display: "inline-block", marginBottom: 12 }} />
-            <p style={{ fontSize: 14 }}>Computing positions…</p>
-          </div>
-        )}
-
-        {/* Planet table */}
-        {data && (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Planet", "Rashi", "Longitude", "Nakshatra", "Dignity"].map((h) => (
-                    <th key={h} style={{
-                      padding: "12px 16px", textAlign: "left",
-                      fontSize: 11, fontWeight: 600, color: "var(--text-dim)",
-                      letterSpacing: "0.06em", textTransform: "uppercase",
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {PLANET_ORDER.map((key, i) => {
-                  const p = data.planets[key];
-                  if (!p) return null;
-                  return (
-                    <tr key={key} style={{
-                      borderBottom: i < PLANET_ORDER.length - 1 ? "1px solid var(--border)" : "none",
-                    }}>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 14 }}>
-                          {PLANET_LABELS[key]}
-                        </span>
-                        {p.retrograde && (
-                          <span style={{ marginLeft: 6, fontSize: 11, color: "#f59e0b" }}>℞</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: 14, color: "var(--accent)", fontWeight: 500 }}>
-                        {p.rashi}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--text-muted)", fontFamily: "monospace" }}>
-                        {degToDMS(p.siderealLongitude)}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--text-muted)" }}>
-                        {p.nakshatra.name} <span style={{ color: "var(--text-dim)" }}>pada {p.nakshatra.pada}</span>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{
-                          fontSize: 11, padding: "2px 8px", borderRadius: 4,
-                          background: "var(--surface)", color: "var(--text-muted)",
-                          textTransform: "capitalize",
-                        }}>
-                          {p.dignity}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {loading && !result && (
+          <div style={{ textAlign: "center", color: "var(--text-dim)", fontSize: 13, paddingTop: 24 }}>
+            <span className="spinner" /> Computing the almanac…
           </div>
         )}
       </div>

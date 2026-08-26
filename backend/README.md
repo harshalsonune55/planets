@@ -25,7 +25,11 @@ Reference: Jean Meeus, *Astronomical Algorithms* 2nd ed.
 - **Yogas** — Raj Yoga, Pancha Mahapurusha, Gajakesari, Dhana, Neecha Bhanga, Vipareeta, Kemadruma, Budha-Aditya, Chandra-Mangala, and more
 - **Aspects (Drishti)** — full + special aspects (Mars 4th/8th, Jupiter 5th/9th, Saturn 3rd/10th)
 - **Vimshottari Dasha** — Mahadasha → Antardasha → Pratyantar → hierarchical breakdown
-- **Panchanga** — Tithi, Vara, Nakshatra, Yoga (Nithya), Karana
+- **Panchanga** — Tithi, Vara, Nakshatra, Yoga (Nithya), Karana, each with the exact moment it ends
+- **Hora** — the 24 planetary hours, in Chaldean order from the weekday lord
+- **Choghadiya** — 8 day + 8 night muhurtas with their quality
+- **Kaal periods** — Rahu Kaal, Yamaganda, Gulika Kaal, Abhijit Muhurta
+- **Lunar calendar** — amanta/purnimanta month, Ritu, Shaka & Vikram Samvat
 - **Predictions** — Dasha themes + Gochar (transit) analysis
 
 ## Quick Start

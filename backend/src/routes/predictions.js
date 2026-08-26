@@ -4,7 +4,8 @@
 
 import express from 'express';
 import { generatePredictions } from '../vedic/predictions.js';
-import { calculateChart, calculateDailyPanchanga } from '../vedic/chart.js';
+import { calculateChart } from '../vedic/chart.js';
+import { calculateDailyPanchanga } from '../vedic/panchanga.js';
 
 const router = express.Router();
 
@@ -67,7 +68,8 @@ router.post('/', (req, res) => {
 
 /**
  * POST /api/predictions/panchanga
- * Daily Panchanga for a date and location
+ * Daily Panchanga for a date and location.
+ * @deprecated Kept as an alias — use POST /api/panchanga instead.
  */
 router.post('/panchanga', (req, res) => {
   try {

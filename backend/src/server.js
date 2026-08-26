@@ -15,6 +15,7 @@ import cors from 'cors';
 import chartRouter       from './routes/chart.js';
 import dashaRouter       from './routes/dasha.js';
 import predictionsRouter from './routes/predictions.js';
+import panchangaRouter   from './routes/panchanga.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -35,6 +36,7 @@ app.use((req, _res, next) => {
 app.use('/api/chart',       chartRouter);
 app.use('/api/dasha',       dashaRouter);
 app.use('/api/predictions', predictionsRouter);
+app.use('/api/panchanga',   panchangaRouter);
 
 // ── Root ─────────────────────────────────────────────────────
 app.get('/', (_req, res) => {
@@ -50,8 +52,11 @@ app.get('/', (_req, res) => {
       'POST /api/dasha':                  'Vimshottari Dasha timeline',
       'POST /api/dasha/antardasha':       'Antardasha + Pratyantar breakdown for a Mahadasha',
       'POST /api/predictions':            'Full Vedic predictions (dasha + transits + natal analysis)',
-      'POST /api/predictions/panchanga':  'Daily Panchanga (Tithi, Vara, Nakshatra, Yoga, Karana)',
       'POST /api/predictions/transit':    'Current planetary transits',
+      'POST /api/panchanga':              'Full daily Panchanga: 5 limbs with end times, Hora, Choghadiya, Rahu Kaal',
+      'POST /api/panchanga/range':        'Panchanga + Hora + Choghadiya for each of N consecutive days',
+      'POST /api/panchanga/hora':         'The 24 planetary hours (Hora) for a day',
+      'POST /api/panchanga/choghadiya':   'Day and night Choghadiya + Kaal periods for a day',
     },
     sampleChartRequest: {
       url: 'POST /api/chart',
